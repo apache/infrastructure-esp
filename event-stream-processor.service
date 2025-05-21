@@ -6,7 +6,7 @@ Type=simple
 WorkingDirectory=/var/app/current/
 ExecStart=poetry run hypercorn main:app -b 127.0.0.1:8000
 Restart=always
-User=ec2-user
+User=webapp
 
 [Install]
 WantedBy=multi-user.target
