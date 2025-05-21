@@ -1,0 +1,39 @@
+[project]
+name = "infrastructure-esp"
+version = "0.1.0"
+description = "Infrastructure ESP"
+authors = [
+    { name = "ASF Infrastructure", email = "users@infra.apache.org" }
+]
+license = "Apache-2.0"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "asfquart",
+    "pydantic~=2.11.2",
+    "pytz~=2025.2",
+    "quart-schema[pydantic]~=0.21"
+]
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.12,<4"
+asfquart = ">=0.1.10"
+hypercorn = "~=0.17.3"
+
+[tool.poetry.group.test.dependencies]
+pytest = ">=8.0"
+pytest-asyncio = ">=0.24"
+parameterized = ">=0.9"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths  = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
