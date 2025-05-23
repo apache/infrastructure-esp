@@ -24,6 +24,7 @@ asfquart = ">=0.1.10"
 hypercorn = "~=0.17.3"
 valkey = "^6.1.0"
 pydantic = "^2.11.5"
+msgpack = "^1.1.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = ">=8.0"
