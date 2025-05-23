@@ -73,7 +73,7 @@ class Stream:
         # metadata variables for tracking. We pack everything up as that allows us to skip
         # encoding in valkey altogether, which prevents breakage with binary data in the dicts.
         data_packed= msgpack.packb({
-            "ts": time.time_ns(),
+            "ts": time.time_ns()/1000000000.0,
             "client_id": client_id,
             "data": data,
         })
@@ -97,7 +97,9 @@ class Stream:
             self.stream = parent
             self.client_group = client_group
             self.eid = eid
-            self.data = data
+            self.data = data.get("data")
+            self.ts = data.get("ts", 0)
+            self.client_id = data.get("client_id")
 
         async def complete(self):
             """Marks an event as fully processed by this consumer group, removing it from the pending Entries List (PEL)"""
@@ -138,7 +140,7 @@ class Stream:
                     data = msgpack.unpackb(data.get(b"data"))
                     if "data" in data:
                         yield Stream.StreamEvent(
-                            parent=self, client_group=client_group, client_id=client_id, eid=eid.decode("us-ascii"), data=data.get("data")
+                            parent=self, client_group=client_group, client_id=client_id, eid=eid.decode("us-ascii"), data=data
                         )
                         if not blocking:
                             break
