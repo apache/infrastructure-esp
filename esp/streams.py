@@ -33,6 +33,8 @@ Example stream reader:
 import typing
 import asfpy.whoami
 import valkey.asyncio
+import time
+import msgpack
 
 WHOAMI = asfpy.whoami.whoami()
 BLOCK_INTERVAL = 5000  # Block for 5000 ms when reading stream queues
@@ -54,7 +56,7 @@ class Pipelines:
     FEEDBACK = "pubsub_feedback"  # This is where external agents can register feedback on pubsub events
 
 
-_vk = valkey.asyncio.Valkey(decode_responses=True)
+_vk = valkey.asyncio.Valkey(decode_responses=False)
 
 
 class Stream:
@@ -64,12 +66,22 @@ class Stream:
         self.group = lambda group_name: self.read(group_name)
         self._initialized_groups: list = []
 
-    async def push(self, payload: dict):
+    async def push(self, data: object, client_id = WHOAMI):
+        """Pushes a payload dictionary to the event stream"""
+        # We msgpack it here as we may not know the format of this payload, so to ensure it is
+        # something we can store in the stream, we pack it up as a binary blob and append
+        # metadata variables for tracking. We pack everything up as that allows us to skip
+        # encoding in valkey altogether, which prevents breakage with binary data in the dicts.
+        data_packed= msgpack.packb({
+            "ts": time.time_ns(),
+            "client_id": client_id,
+            "data": data,
+        })
         eid = await _vk.xadd(
             name=self.name,
-            fields=payload,
+            fields={"data": data_packed},
         )
-        print(eid)
+        return eid
 
     async def _init_group(self, group_name: str):
         try:
@@ -122,11 +134,14 @@ class Stream:
                 )
                 if rv and rv[0][1]:
                     eid, data = rv[0][1][0]
-                    yield Stream.StreamEvent(
-                        parent=self, client_group=client_group, client_id=client_id, eid=eid, data=data
-                    )
-                    if not blocking:
-                        break
+                    # Unpack the msgpacked data
+                    data = msgpack.unpackb(data.get(b"data"))
+                    if "data" in data:
+                        yield Stream.StreamEvent(
+                            parent=self, client_group=client_group, client_id=client_id, eid=eid.decode("us-ascii"), data=data.get("data")
+                        )
+                        if not blocking:
+                            break
                 else:
                     # If we received no entries, and the cursor is set to SEEK_BEGINNING ("0-0"), that means we have reached the end of
                     # any PEL history we had for this client. We then change the cursor to SEEK_POLL (">"), meaning any new events that
