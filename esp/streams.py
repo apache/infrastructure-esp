@@ -40,15 +40,15 @@ WHOAMI = asfpy.whoami.whoami()
 BLOCK_INTERVAL = 5000  # Block for 5000 ms when reading stream queues
 DEFAULT_GROUP = "default"  # If not otherwise specified, we group reads into this default consumer group
 
-SEEK_BEGINNING = "0-0"  # Cursor for read() for starting from the beginning of our PEL
-SEEK_POLL = ">"  # Cursor for read() for starting at any incoming stream event (poll)
+SEEK_BEGINNING = "0-0"  # Seek cursor for valkey group read()s. 0-0 means "Go through any items on our PEL"
+SEEK_POLL = ">"  # Seek cursor for valkey group read()s. > means "Poll for any incoming events in this stream"
 
 
 class Pipelines:
-    """These are the basic four pipelines for processing plus feedback loop"""
+    """These are the basic three pipelines for processing plus feedback loop"""
 
     INGRES = "ingress_raw"  # Raw input from 3rd parties, just store and keep trucking. auth processors pick these up
-    VERIFICATION = "ingress_verify"  # Verification processors verify whether an event is legit and legible, and if so, forwards it to the inbound stream
+                            # and move them to ingress_verified once verified.
     INBOUND = (
         "ingress_verified"  # This is the inbound stream of legit events, where the original payloads are transformed into a format we can better utilize for pubsub etc.
     )
