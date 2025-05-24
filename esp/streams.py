@@ -75,6 +75,7 @@ class Stream:
         data_packed= msgpack.packb({
             "ts": time.time_ns()/1000000000.0,
             "client_id": client_id,
+            "client_originator": WHOAMI,  # Even if client_id is tailored, we like to keep a track of the machine itself
             "data": data,
         })
         eid = await _vk.xadd(
