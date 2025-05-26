@@ -82,6 +82,8 @@ class Stream:
             name=self.name,
             fields={"data": data_packed},
         )
+        if isinstance(eid, bytes):
+            eid = eid.decode("us-ascii")
         return eid
 
     async def _init_group(self, group_name: str):
