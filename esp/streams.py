@@ -46,6 +46,7 @@ SEEK_POLL = ">"  # Seek cursor for valkey group read()s. > means "Poll for any i
 VALKEY_HOSTFILE = "/var/app/host.txt"
 VALKEY_HOST = open(VALKEY_HOSTFILE).read().strip() if os.path.isfile(VALKEY_HOSTFILE) else None
 
+
 class Pipelines:
     """These are the basic three pipelines for processing plus feedback loop"""
 
@@ -56,8 +57,15 @@ class Pipelines:
     FEEDBACK = "pubsub_feedback"  # This is where external agents can register feedback on pubsub events
     NOT_SET = object()
 
+
 # our valkey store is only accessible through our beanstalk security group, so we can relax on credentials for now...
-_vk = valkey.asyncio.Valkey(decode_responses=False, host=VALKEY_HOST or "localhost", username="default", password="default", ssl=VALKEY_HOST is not None)
+_vk = valkey.asyncio.Valkey(
+    decode_responses=False,
+    host=VALKEY_HOST or "localhost",
+    username="default",
+    password="default",
+    ssl=VALKEY_HOST is not None,
+)
 
 
 class Agent:
@@ -79,16 +87,15 @@ class Agent:
             stream = Stream(stream)
         return await stream.write(data, self.agent_id)
 
-    def stream_info(self, stream:typing.Union[str, "Stream"]):
+    def stream_info(self, stream: typing.Union[str, "Stream"]):
         if not isinstance(stream, str):  # We accept an open stream or just the name of a stream
             stream = stream.name
         return _vk.xinfo_stream(stream)
 
-    def role_info(self, stream:typing.Union[str, "Stream"]):
+    def role_info(self, stream: typing.Union[str, "Stream"]):
         if not isinstance(stream, str):  # We accept an open stream or just the name of a stream
             stream = stream.name
         return _vk.xinfo_groups(stream)
-
 
 
 class Stream:
@@ -131,8 +138,10 @@ class Stream:
     class Entry:
         def __init__(
             self,
-            data: typing.Optional[typing.Any] = None,  # if supplied, the Entry object is populated with this stream entry data
-            headers: typing.Optional[dict] = None,     # If this entry originated from a HTTP request, put the headers here
+            data: typing.Optional[
+                typing.Any
+            ] = None,  # if supplied, the Entry object is populated with this stream entry data
+            headers: typing.Optional[dict] = None,  # If this entry originated from a HTTP request, put the headers here
             initiator: typing.Union["Entry", str, None] = None,  # backlink to whoever initiated this event
             stream: typing.Optional["Stream"] = None,
             eid: typing.Optional[str] = None,
@@ -203,7 +212,11 @@ class Stream:
                     data = msgpack.unpackb(data.get(b"data"))
                     if "data" in data:
                         yield Stream.Entry(
-                            data=data, headers=data.get("headers"), stream=self, eid=eid.decode("us-ascii"), client_group=client_group
+                            data=data,
+                            headers=data.get("headers"),
+                            stream=self,
+                            eid=eid.decode("us-ascii"),
+                            client_group=client_group,
                         )
                         if not blocking:
                             break
