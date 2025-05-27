@@ -48,36 +48,56 @@ class Pipelines:
     """These are the basic three pipelines for processing plus feedback loop"""
 
     INGRES = "ingress_raw"  # Raw input from 3rd parties, just store and keep trucking. auth processors pick these up
-                            # and move them to ingress_verified once verified.
-    INBOUND = (
-        "ingress_verified"  # This is the inbound stream of legit events, where the original payloads are transformed into a format we can better utilize for pubsub etc.
-    )
+    # and move them to ingress_verified once verified.
+    INBOUND = "ingress_verified"  # This is the inbound stream of legit events, where the original payloads are transformed into a format we can better utilize for pubsub etc.
     PUBLISHING = "pubsub"  # The stream where payloads are queued up for publishing to pypubsub
     FEEDBACK = "pubsub_feedback"  # This is where external agents can register feedback on pubsub events
+    NOT_SET = object()
 
 
 _vk = valkey.asyncio.Valkey(decode_responses=False)
+
+
+class Agent:
+    def __init__(self, role: str, agent_id: str = WHOAMI):
+        self.role = role
+        self.agent_id = agent_id
+
+    def read(self, stream: str, blocking: bool = True) -> typing.AsyncIterator:
+        """Begins reading from a stream. In the event that there are older entries in the PEL,
+        these entries will be fetched first, and then polling for new entries will begin.
+        If `blocking` is set to False, the read call will return immediately, whether or not
+        an entry was waiting in the queue."""
+        local_stream = Stream(stream)
+        return local_stream.read(client_group=self.role, client_id=self.agent_id, blocking=blocking)
+
+    async def write(self, stream: typing.Union[str, "Stream"], data: "Stream.Entry") -> str:
+        """Writes a stream entry to a stream. Returns the EID of the saved entry in the stream."""
+        if isinstance(stream, str):  # We accept an open stream or just the name of a stream
+            stream = Stream(stream)
+        return await stream.write(data, self.agent_id)
 
 
 class Stream:
     def __init__(self, name: str = Pipelines.INBOUND):
         """Instantiates an event stream for both sending and receiving events."""
         self.name: str = name
-        self.group = lambda group_name: self.read(group_name)
         self._initialized_groups: list = []
 
-    async def push(self, data: object, client_id = WHOAMI):
-        """Pushes a payload dictionary to the event stream"""
+    async def write(self, entry: "Entry", client_id: str = None):
+        """Writes a payload object to the event stream"""
         # We msgpack it here as we may not know the format of this payload, so to ensure it is
         # something we can store in the stream, we pack it up as a binary blob and append
         # metadata variables for tracking. We pack everything up as that allows us to skip
         # encoding in valkey altogether, which prevents breakage with binary data in the dicts.
-        data_packed= msgpack.packb({
-            "ts": time.time_ns()/1000000000.0,
-            "client_id": client_id,
-            "client_originator": WHOAMI,  # Even if client_id is tailored, we like to keep a track of the machine itself
-            "data": data,
-        })
+        data_packed = msgpack.packb(
+            {
+                "ts": time.time_ns() / 1000000000.0,
+                "client_id": client_id or WHOAMI,
+                "client_originator": WHOAMI,  # Even if client_id is tailored, we like to keep a track of the machine itself
+                "data": entry.data,
+            }
+        )
         eid = await _vk.xadd(
             name=self.name,
             fields={"data": data_packed},
@@ -93,25 +113,48 @@ class Stream:
             pass  # Already exists, all is well
         self._initialized_groups.append(group_name)
 
-    class StreamEvent:
+    class Entry:
         def __init__(
-            self, parent: "Stream", client_group: str, client_id: str, eid: str, data: typing.Union[typing.Dict, None]
+            self,
+            data: typing.Optional[typing.Any] = None,
+            initiator: typing.Union["Entry", str, None] = None,
+            stream: typing.Optional["Stream"] = None,
+            eid: typing.Optional[str] = None,
+            client_group: typing.Optional[str] = None,
         ):
-            self.stream = parent
-            self.client_group = client_group
             self.eid = eid
-            self.data = data.get("data")
-            self.ts = data.get("ts", 0)
-            self.client_id = data.get("client_id")
+            if data:
+                self.ts = data.get("ts", 0)
+                self.client_id = data.get("client_id")
+                self.data = data.get("data")
+            else:
+                self.ts = time.time_ns() / 1000000000.0
+                self.client_id = WHOAMI
+
+            self.stream = stream or Pipelines.NOT_SET
+
+            if initiator:
+                if isinstance(initiator, self.__class__):
+                    self.initiator = f"pipeline::{initiator.stream.name}::{initiator.eid}"
+                else:
+                    self.initiator = f"external::{initiator}"
+            else:
+                self.initiator = "none"
+
+            self.client_group = client_group
 
         async def complete(self):
             """Marks an event as fully processed by this consumer group, removing it from the pending Entries List (PEL)"""
             rv = await _vk.xack(self.stream.name, self.client_group, self.eid)
             return rv
 
+        def response(self):
+            """Generates an empty response-entry to this stream entry, with its origin mapped to this entry."""
+            return self.__class__(data=None, initiator=self)
+
     async def read(
         self, client_group: str = DEFAULT_GROUP, client_id: str = WHOAMI, blocking=True
-    ) -> typing.AsyncIterator[StreamEvent]:
+    ) -> typing.AsyncIterator[Entry]:
         """Reads from an event stream. If `client_group` is specified, a consumer group is created,
         wherein all incoming events are distributed among the members of that consumer group,
         so that no listener in that group will get the same message another listener has already
@@ -142,8 +185,8 @@ class Stream:
                     # Unpack the msgpacked data
                     data = msgpack.unpackb(data.get(b"data"))
                     if "data" in data:
-                        yield Stream.StreamEvent(
-                            parent=self, client_group=client_group, client_id=client_id, eid=eid.decode("us-ascii"), data=data
+                        yield Stream.Entry(
+                            data=data, stream=self, eid=eid.decode("us-ascii"), client_group=client_group
                         )
                         if not blocking:
                             break
