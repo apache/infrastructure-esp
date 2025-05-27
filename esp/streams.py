@@ -57,7 +57,7 @@ class Pipelines:
     NOT_SET = object()
 
 # our valkey store is only accessible through our beanstalk security group, so we can relax on credentials for now...
-_vk = valkey.asyncio.Valkey(decode_responses=False, host=VALKEY_HOST, username="default", password="default")
+_vk = valkey.asyncio.Valkey(decode_responses=False, host=VALKEY_HOST, username="default", password="default", ssl=True)
 
 
 class Agent:
