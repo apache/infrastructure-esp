@@ -22,7 +22,7 @@ async def processor_loop():
         await entry.complete()
         
         # And we are done, grab the next entry for processing.
-        # Should we crash and burn, this will pick off where we left off
+        # Should we crash and burn, this will pick up where we left off
         # with the last entry not complete()'d.
 
 asyncio.run(processor_loop())
