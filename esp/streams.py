@@ -44,7 +44,7 @@ DEFAULT_GROUP = "default"  # If not otherwise specified, we group reads into thi
 SEEK_BEGINNING = "0-0"  # Seek cursor for valkey group read()s. 0-0 means "Go through any items on our PEL"
 SEEK_POLL = ">"  # Seek cursor for valkey group read()s. > means "Poll for any incoming events in this stream"
 VALKEY_HOSTFILE = "/var/app/host.txt"
-VALKEY_HOST = open(VALKEY_HOSTFILE).read().trim() if os.path.isfile(VALKEY_HOSTFILE) else "localhost"
+VALKEY_HOST = open(VALKEY_HOSTFILE).read().strip() if os.path.isfile(VALKEY_HOSTFILE) else "localhost"
 
 class Pipelines:
     """These are the basic three pipelines for processing plus feedback loop"""
