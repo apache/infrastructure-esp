@@ -35,6 +35,7 @@ import asfpy.whoami
 import valkey.asyncio
 import time
 import msgpack
+import os
 
 WHOAMI = asfpy.whoami.whoami()
 BLOCK_INTERVAL = 5000  # Block for 5000 ms when reading stream queues
@@ -42,7 +43,8 @@ DEFAULT_GROUP = "default"  # If not otherwise specified, we group reads into thi
 
 SEEK_BEGINNING = "0-0"  # Seek cursor for valkey group read()s. 0-0 means "Go through any items on our PEL"
 SEEK_POLL = ">"  # Seek cursor for valkey group read()s. > means "Poll for any incoming events in this stream"
-
+VALKEY_HOSTFILE = "/var/app/host.txt"
+VALKEY_HOST = open(VALKEY_HOSTFILE).read().trim() if os.path.isfile(VALKEY_HOSTFILE) else "localhost"
 
 class Pipelines:
     """These are the basic three pipelines for processing plus feedback loop"""
@@ -54,8 +56,8 @@ class Pipelines:
     FEEDBACK = "pubsub_feedback"  # This is where external agents can register feedback on pubsub events
     NOT_SET = object()
 
-
-_vk = valkey.asyncio.Valkey(decode_responses=False)
+# our valkey store is only accessible through our beanstalk security group, so we can relax on credentials for now...
+_vk = valkey.asyncio.Valkey(decode_responses=False, host=VALKEY_HOST, username="default", password="default")
 
 
 class Agent:
