@@ -95,6 +95,7 @@ class Stream:
                 "ts": time.time_ns() / 1000000000.0,
                 "client_id": client_id or WHOAMI,
                 "client_originator": WHOAMI,  # Even if client_id is tailored, we like to keep a track of the machine itself
+                "initiator": entry.initiator,
                 "data": entry.data,
             }
         )
@@ -127,9 +128,11 @@ class Stream:
                 self.ts = data.get("ts", 0)
                 self.client_id = data.get("client_id")
                 self.data = data.get("data")
+                self.initiator = data.get("initiator", "none")
             else:
                 self.ts = time.time_ns() / 1000000000.0
                 self.client_id = WHOAMI
+                self.initiator = "none"
 
             self.stream = stream or Pipelines.NOT_SET
 
@@ -138,8 +141,6 @@ class Stream:
                     self.initiator = f"pipeline::{initiator.stream.name}::{initiator.eid}"
                 else:
                     self.initiator = f"external::{initiator}"
-            else:
-                self.initiator = "none"
 
             self.client_group = client_group
 
