@@ -77,6 +77,17 @@ class Agent:
             stream = Stream(stream)
         return await stream.write(data, self.agent_id)
 
+    def stream_info(self, stream:typing.Union[str, "Stream"]):
+        if not isinstance(stream, str):  # We accept an open stream or just the name of a stream
+            stream = stream.name
+        return _vk.xinfo_stream(stream)
+
+    def role_info(self, stream:typing.Union[str, "Stream"]):
+        if not isinstance(stream, str):  # We accept an open stream or just the name of a stream
+            stream = stream.name
+        return _vk.xinfo_groups(stream)
+
+
 
 class Stream:
     def __init__(self, name: str = Pipelines.INBOUND):
