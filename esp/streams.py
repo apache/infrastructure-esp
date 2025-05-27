@@ -44,7 +44,7 @@ DEFAULT_GROUP = "default"  # If not otherwise specified, we group reads into thi
 SEEK_BEGINNING = "0-0"  # Seek cursor for valkey group read()s. 0-0 means "Go through any items on our PEL"
 SEEK_POLL = ">"  # Seek cursor for valkey group read()s. > means "Poll for any incoming events in this stream"
 VALKEY_HOSTFILE = "/var/app/host.txt"
-VALKEY_HOST = open(VALKEY_HOSTFILE).read().strip() if os.path.isfile(VALKEY_HOSTFILE) else "localhost"
+VALKEY_HOST = open(VALKEY_HOSTFILE).read().strip() if os.path.isfile(VALKEY_HOSTFILE) else None
 
 class Pipelines:
     """These are the basic three pipelines for processing plus feedback loop"""
@@ -57,7 +57,7 @@ class Pipelines:
     NOT_SET = object()
 
 # our valkey store is only accessible through our beanstalk security group, so we can relax on credentials for now...
-_vk = valkey.asyncio.Valkey(decode_responses=False, host=VALKEY_HOST, username="default", password="default", ssl=True)
+_vk = valkey.asyncio.Valkey(decode_responses=False, host=VALKEY_HOST or "localhost", username="default", password="default", ssl=VALKEY_HOST is not None)
 
 
 class Agent:
