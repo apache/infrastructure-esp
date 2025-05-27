@@ -149,7 +149,7 @@ class Stream:
             rv = await _vk.xack(self.stream.name, self.client_group, self.eid)
             return rv
 
-        def response(self):
+        def response(self) -> "Entry":
             """Generates an empty response-entry to this stream entry, with its origin mapped to this entry."""
             return self.__class__(data=None, initiator=self)
 
