@@ -97,6 +97,7 @@ class Stream:
                 "client_originator": WHOAMI,  # Even if client_id is tailored, we like to keep a track of the machine itself
                 "initiator": entry.initiator,
                 "data": entry.data,
+                "headers": entry.headers,
             }
         )
         eid = await _vk.xadd(
@@ -118,12 +119,14 @@ class Stream:
         def __init__(
             self,
             data: typing.Optional[typing.Any] = None,
+            headers: typing.Optional[dict] = None,
             initiator: typing.Union["Entry", str, None] = None,
             stream: typing.Optional["Stream"] = None,
             eid: typing.Optional[str] = None,
             client_group: typing.Optional[str] = None,
         ):
             self.eid = eid
+            self.headers = headers or {}
             if data:
                 self.ts = data.get("ts", 0)
                 self.client_id = data.get("client_id")
@@ -187,7 +190,7 @@ class Stream:
                     data = msgpack.unpackb(data.get(b"data"))
                     if "data" in data:
                         yield Stream.Entry(
-                            data=data, stream=self, eid=eid.decode("us-ascii"), client_group=client_group
+                            data=data, headers=data.get("headers"), stream=self, eid=eid.decode("us-ascii"), client_group=client_group
                         )
                         if not blocking:
                             break
