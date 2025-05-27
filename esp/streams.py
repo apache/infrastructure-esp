@@ -118,9 +118,9 @@ class Stream:
     class Entry:
         def __init__(
             self,
-            data: typing.Optional[typing.Any] = None,
-            headers: typing.Optional[dict] = None,
-            initiator: typing.Union["Entry", str, None] = None,
+            data: typing.Optional[typing.Any] = None,  # if supplied, the Entry object is populated with this stream entry data
+            headers: typing.Optional[dict] = None,     # If this entry originated from a HTTP request, put the headers here
+            initiator: typing.Union["Entry", str, None] = None,  # backlink to whoever initiated this event
             stream: typing.Optional["Stream"] = None,
             eid: typing.Optional[str] = None,
             client_group: typing.Optional[str] = None,
