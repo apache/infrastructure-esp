@@ -25,12 +25,12 @@ target_stream = esp.streams.Pipelines.INGRES
 me = esp.streams.Agent("ingress")
 
 
-@app.route("/store/<string:initiator>")
+@app.route("/store/<string:initiator>", methods=["POST", "PUT", "GET"])
 async def ingress_store(initiator: str):
     """Just plain up stores whatever is sent to it. Uses /store/foo to tag items sent from foo."""
     data = await asfquart.utils.formdata()
     headers = dict({k.lower():v for k,v in quart.request.headers.items()})
-    headers.pop("cookie")  # We never want bad cookies, blech
+    headers.pop("cookie", "")  # We never want bad cookies, blech
     if data:
         # If we got something sent, log it to the pipeline.
         entry = esp.streams.Stream.Entry(initiator=f"inbound::{initiator}", headers=headers)
