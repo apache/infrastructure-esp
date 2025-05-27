@@ -14,10 +14,16 @@ async def processor_loop():
         
         # Let's make a new entry to another stream based on this entry 
         new_entry = entry.response()  # A new entry that tracks back to the original entry
-        await agent.write("some-other-stream", new_entry)
+        eid = await agent.write("some-other-stream", new_entry)
+        print(f"Wrote an entry in some-other-stream, saved as {eid}, initiator was {new_entry.initiator}")
+        #  > Wrote an entry in some-other-stream, saved as 1748358969481-0, initiator was external::github::webhook::someid
         
         # Now mark processing of the original entry as completed, removing it from the PEL
         await entry.complete()
+        
+        # And we are done, grab the next entry for processing.
+        # Should we crash and burn, this will pick off where we left off
+        # with the last entry not complete()'d.
 
 asyncio.run(processor_loop())
 ~~~
