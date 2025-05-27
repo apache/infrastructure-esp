@@ -2,20 +2,20 @@ import asfquart
 from asfquart.auth import Requirements as R
 import quart
 
+import esp
+
+
 def my_app() -> asfquart.base.QuartApp:
     # Construct the quart service. By default, the oauth gateway is enabled at /oauth.
     app = asfquart.construct("my_app_service")
+    import esp.ingress_store
 
     @app.route("/")
     async def homepage():
         return f"Hello, {quart.request.remote_addr}!"
 
-    @app.route("/secret")
-    @asfquart.auth.require(R.committer)
-    async def secret_page():
-        return "Secret stuff!"
-
     return app
+
 
 if __name__ == "__main__":
     app = my_app()
