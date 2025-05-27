@@ -12,7 +12,9 @@ dependencies = [
     "asfquart",
     "pydantic~=2.11.2",
     "pytz~=2025.2",
-    "quart-schema[pydantic]~=0.21"
+    "quart-schema[pydantic]~=0.21",
+    "valkey~=6.1.0",
+    "msgpack~=1.1.0"
 ]
 
 [tool.poetry]
