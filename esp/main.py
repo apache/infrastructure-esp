@@ -7,6 +7,7 @@ def my_app() -> asfquart.base.QuartApp:
     app = asfquart.construct("my_app_service")
 
     import esp.routes.ingress_store
+    import esp.routes.status
 
     @app.route("/")
     async def homepage():
