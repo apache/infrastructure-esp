@@ -57,6 +57,7 @@ class Pipelines:
     FEEDBACK = "pubsub_feedback"  # This is where external agents can register feedback on pubsub events
     NOT_SET = object()
 
+pipes = (Pipelines.INGRES, Pipelines.INBOUND, Pipelines.PUBLISHING, Pipelines.FEEDBACK)
 
 # our valkey store is only accessible through our beanstalk security group, so we can relax on credentials for now...
 _vk = valkey.asyncio.Valkey(
