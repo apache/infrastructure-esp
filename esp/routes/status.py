@@ -33,8 +33,6 @@ async def store_status():
     for stream in esp.streams.pipes:
         try:
             stream_info = await me.stream_info(stream)
-            entries_total = stream_info.get("entries-added", 0)
-            role_info = await me.role_info(stream)
             last_eid = stream_info.get("last-generated-id", b"0-0").decode("us-ascii")
             last_event = 0
             if "-" in last_eid:
@@ -47,16 +45,18 @@ async def store_status():
                 "last_document": last_eid,
                 "consumers": {}
             }
+            role_info = await me.role_info(stream)
             for role in role_info:
-                e_read = role.get("entries-read")
-                e_missing = entries_total - e_read
+                e_read = role.get("entries-read")  # Entries that have been read and ACK'ed
+                e_lag = role.get("lag") or 0       # Entries that have not yet been read by anyone
+                e_unacked = role.get("pending") or 0 # Entries that have been read but not ACK'ed yet
                 rname = role.get("name", b"??").decode("us-ascii")
                 status_dict[stream]["consumers"][rname] = {
                     "read_entries": e_read,
-                    "unread_entries": e_missing,
+                    "unread_entries": e_lag,
+                    "pending_processing": e_unacked,
                 }
         except valkey.exceptions.ResponseError:
             pass  # No such pipeline yet..
 
     return status_dict
-
