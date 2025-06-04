@@ -46,6 +46,8 @@ SEEK_POLL = ">"  # Seek cursor for valkey group read()s. > means "Poll for any i
 VALKEY_HOSTFILE = "/var/app/host.txt"
 VALKEY_HOST = open(VALKEY_HOSTFILE).read().strip() if os.path.isfile(VALKEY_HOSTFILE) else None
 
+MAX_STREAM_SIZE = 100000  # If we hit 100k entries in the stream, we need to prune
+
 
 class Pipelines:
     """These are the basic three pipelines for processing plus feedback loop"""
@@ -91,7 +93,7 @@ class Agent:
     def stream_info(self, stream: typing.Union[str, "Stream"]):
         if not isinstance(stream, str):  # We accept an open stream or just the name of a stream
             stream = stream.name
-        return _vk.xinfo_stream(stream)
+        return _vk.xinfo_stream(stream, full=True)
 
     def role_info(self, stream: typing.Union[str, "Stream"]):
         if not isinstance(stream, str):  # We accept an open stream or just the name of a stream
@@ -135,6 +137,47 @@ class Stream:
         except valkey.exceptions.ResponseError:
             pass  # Already exists, all is well
         self._initialized_groups.append(group_name)
+
+    async def trim(self, maxlen=None, minid=None):
+        return await _vk.xtrim(self.name, maxlen=maxlen, approximate=True, minid=minid)
+
+    async def prune(self, maxlen=MAX_STREAM_SIZE):
+        try:
+            stream_info = await _vk.xinfo_stream(self.name)
+            stream_length = stream_info.get("length", 0)
+        except valkey.exceptions.ResponseError as e:  # No such stream, so we can't prune it.
+            print(f"Could not prune stream '{self.name}': {e}")
+            return
+        if stream_length > maxlen:
+            print(f"Stream {self.name} is at {stream_length} entries, above the {maxlen} entry limit, trying to prune enough acknowledged entries.")
+            lowest_eid_acked = 0
+            for stream in pipes:
+                try:
+                    stream_info = await _vk.xinfo_stream(self.name)
+                    entries_total = stream_info.get("entries-added", 0)
+                    role_info = await _vk.xinfo_groups(stream)
+                    for role in role_info:
+                        e_read = role.get("entries-read")
+                        e_missing = entries_total - e_read
+                        rname = role.get("name", b"??").decode("us-ascii")
+                        pending = await _vk.xpending(self.name, rname)
+                        if pending and "min" in pending:
+                            last_eid = int((pending.get("min") or b"0-0").decode("us-ascii").split("-")[0])-1
+                            if last_eid > lowest_eid_acked:
+                                lowest_eid_acked = last_eid
+                except valkey.exceptions.ResponseError:
+                    pass  # No such pipeline yet, ignore it.
+            if lowest_eid_acked:
+                print(f"Lowest ID I can flush is {lowest_eid_acked}")
+                entries_evicted = await self.trim(minid=lowest_eid_acked)
+                print(f"Evicted {entries_evicted} entries")
+        if stream_length > maxlen:
+            print(f"Stream {self.name} is STILL at {stream_length} entries, above the {maxlen} entry limit, need to evict forcibly.")
+            rv = await self.trim(maxlen)
+            print(rv)
+
+
+
 
     class Entry:
         def __init__(
@@ -207,31 +250,32 @@ class Stream:
                     count=1,
                     block=BLOCK_INTERVAL if blocking else None,
                 )
-                if rv and rv[0][1]:
-                    eid, data = rv[0][1][0]
-                    # Unpack the msgpacked data
-                    data = msgpack.unpackb(data.get(b"data"))
-                    if "data" in data:
-                        yield Stream.Entry(
-                            data=data,
-                            headers=data.get("headers"),
-                            stream=self,
-                            eid=eid.decode("us-ascii"),
-                            client_group=client_group,
-                        )
-                        if not blocking:
-                            break
-                else:
-                    # If we received no entries, and the cursor is set to SEEK_BEGINNING ("0-0"), that means we have reached the end of
-                    # any PEL history we had for this client. We then change the cursor to SEEK_POLL (">"), meaning any new events that
-                    # have come in or will come in on this stream channel. The PEL consists of any messages relayed to
-                    # this client but not fully handled and finalized with .complete(). This allows us to pick up where
-                    # we left off, whether due to the process crashing, networking issues, etc.
-                    if cursor == SEEK_BEGINNING:
-                        cursor = SEEK_POLL
-                        continue
-                    if not blocking:
-                        break
             except valkey.exceptions.TimeoutError as e:
                 if not blocking:  # If not due to blank queue in blocking mode, pass on the failure.
                     raise e
+                rv = None
+            if rv and rv[0][1]:
+                eid, data = rv[0][1][0]
+                # Unpack the msgpacked data
+                data = msgpack.unpackb(data.get(b"data"))
+                if "data" in data:
+                    yield Stream.Entry(
+                        data=data,
+                        headers=data.get("headers"),
+                        stream=self,
+                        eid=eid.decode("us-ascii"),
+                        client_group=client_group,
+                    )
+                    if not blocking:
+                        break
+            else:
+                # If we received no entries, and the cursor is set to SEEK_BEGINNING ("0-0"), that means we have reached the end of
+                # any PEL history we had for this client. We then change the cursor to SEEK_POLL (">"), meaning any new events that
+                # have come in or will come in on this stream channel. The PEL consists of any messages relayed to
+                # this client but not fully handled and finalized with .complete(). This allows us to pick up where
+                # we left off, whether due to the process crashing, networking issues, etc.
+                if cursor == SEEK_BEGINNING:
+                    cursor = SEEK_POLL
+                    continue
+                if not blocking:
+                    break
