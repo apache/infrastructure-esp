@@ -60,3 +60,17 @@ async def store_status():
             pass  # No such pipeline yet..
 
     return status_dict
+
+# TODO: rate limit feature in asfquart
+last_prune = time.time()
+
+@app.route("/prune")
+async def prune():
+    now = time.time()
+    if last_prune > (now - 900):
+        return "Too soon, Executus!", 429
+    for stream_name in esp.streams.pipes:
+        stream = esp.streams.Stream(stream_name)
+        print(f"Calling prune on stream {stream_name}")
+        await stream.prune()
+    return "Pruning scheduled", 201
